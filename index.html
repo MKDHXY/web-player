@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>网页音乐播放器</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: #0f1115;
+        color: #f7f7f7;
+        display: flex;
+        justify-content: center;
+        padding: 40px 16px;
+      }
+      .player {
+        width: min(960px, 100%);
+        background: #161a22;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 24px;
+      }
+      .panel {
+        background: #1c212b;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      button {
+        border: none;
+        background: #2a3345;
+        color: #fff;
+        border-radius: 10px;
+        padding: 8px 14px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #39465d;
+      }
+      .progress {
+        width: 100%;
+      }
+      .time {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        opacity: 0.75;
+        margin-top: 6px;
+      }
+      .playlist-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        margin-bottom: 8px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .playlist-item.active {
+        background: #2b4d78;
+      }
+      .lyrics {
+        max-height: 320px;
+        overflow-y: auto;
+        padding-right: 6px;
+      }
+      .lyric-line {
+        padding: 6px 0;
+        opacity: 0.6;
+      }
+      .lyric-line.active {
+        opacity: 1;
+        color: #8fd0ff;
+        font-weight: 600;
+      }
+      .volume {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+      }
+      input[type="range"] {
+        accent-color: #70b6ff;
+      }
+      @media (max-width: 860px) {
+        .player {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="player">
+      <div>
+        <h1>网页音乐播放器</h1>
+        <div class="panel">
+          <div class="controls">
+            <button id="prevBtn">⏮ 上一首</button>
+            <button id="playBtn">▶️ 播放</button>
+            <button id="pauseBtn">⏸ 暂停</button>
+            <button id="nextBtn">⏭ 下一首</button>
+            <div class="volume">
+              <span>音量</span>
+              <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" />
+            </div>
+          </div>
+          <div>
+            <strong id="trackTitle">歌曲标题</strong>
+            <div id="trackArtist" style="opacity: 0.7; font-size: 14px;">歌手</div>
+          </div>
+          <input id="progress" class="progress" type="range" min="0" max="100" value="0" />
+          <div class="time">
+            <span id="current">0:00</span>
+            <span id="duration">0:00</span>
+          </div>
+        </div>
+        <div class="panel" style="margin-top: 16px;">
+          <h2 style="margin-top: 0; font-size: 18px;">播放列表</h2>
+          <div id="playlist"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-top: 0; font-size: 18px;">歌词</h2>
+        <div id="lyrics" class="lyrics"></div>
+      </div>
+    </div>
+
+    <audio id="audio"></audio>
+
+    <script>
+      const tracks = [
+        {
+          title: "Morning Light",
+          artist: "Demo Artist",
+          src: "song-1.mp3",
+          lyrics: [
+            { time: 0, text: "清晨的第一缕阳光" },
+            { time: 8, text: "照亮了城市的街道" },
+            { time: 16, text: "你的笑容像微风" },
+            { time: 24, text: "轻轻吹过我心上" },
+            { time: 32, text: "让所有烦恼都散去" }
+          ]
+        },
+        {
+          title: "City Night",
+          artist: "Demo Artist",
+          src: "song-2.mp3",
+          lyrics: [
+            { time: 0, text: "夜色慢慢降临" },
+            { time: 10, text: "霓虹点亮了回忆" },
+            { time: 20, text: "在这座城市里" },
+            { time: 30, text: "我们一直向前走" }
+          ]
+        },
+        {
+          title: "Rainy Day",
+          artist: "Demo Artist",
+          src: "song-3.mp3",
+          lyrics: [
+            { time: 0, text: "雨滴敲打着窗" },
+            { time: 12, text: "温柔又有点忧伤" },
+            { time: 24, text: "想起你的话语" },
+            { time: 36, text: "心里慢慢发烫" }
+          ]
+        }
+      ];
+
+      const audio = document.getElementById("audio");
+      const playBtn = document.getElementById("playBtn");
+      const pauseBtn = document.getElementById("pauseBtn");
+      const prevBtn = document.getElementById("prevBtn");
+      const nextBtn = document.getElementById("nextBtn");
+      const progress = document.getElementById("progress");
+      const current = document.getElementById("current");
+      const duration = document.getElementById("duration");
+      const volume = document.getElementById("volume");
+      const trackTitle = document.getElementById("trackTitle");
+      const trackArtist = document.getElementById("trackArtist");
+      const playlist = document.getElementById("playlist");
+      const lyricsContainer = document.getElementById("lyrics");
+
+      let currentIndex = 0;
+      let currentLyrics = [];
+
+      function formatTime(sec) {
+        const m = Math.floor(sec / 60) || 0;
+        const s = Math.floor(sec % 60) || 0;
+        return `${m}:${s.toString().padStart(2, "0")}`;
+      }
+
+      function renderPlaylist() {
+        playlist.innerHTML = "";
+        tracks.forEach((track, index) => {
+          const item = document.createElement("div");
+          item.className = "playlist-item" + (index === currentIndex ? " active" : "");
+          item.innerHTML = `<span>${track.title}</span><span style="opacity:0.7;">${track.artist}</span>`;
+          item.addEventListener("click", () => {
+            loadTrack(index);
+            audio.play();
+          });
+          playlist.appendChild(item);
+        });
+      }
+
+      function renderLyrics() {
+        lyricsContainer.innerHTML = "";
+        currentLyrics.forEach((line) => {
+          const div = document.createElement("div");
+          div.className = "lyric-line";
+          div.dataset.time = line.time;
+          div.textContent = line.text;
+          lyricsContainer.appendChild(div);
+        });
+      }
+
+      function highlightLyrics(currentTime) {
+        const lines = Array.from(lyricsContainer.querySelectorAll(".lyric-line"));
+        let activeIndex = -1;
+        currentLyrics.forEach((line, index) => {
+          if (currentTime >= line.time) {
+            activeIndex = index;
+          }
+        });
+        lines.forEach((line, index) => {
+          line.classList.toggle("active", index === activeIndex);
+        });
+        if (activeIndex >= 0) {
+          lines[activeIndex].scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      }
+
+      function loadTrack(index) {
+        const track = tracks[index];
+        currentIndex = index;
+        audio.src = track.src;
+        trackTitle.textContent = track.title;
+        trackArtist.textContent = track.artist;
+        currentLyrics = track.lyrics || [];
+        renderLyrics();
+        renderPlaylist();
+      }
+
+      function playNext() {
+        const nextIndex = (currentIndex + 1) % tracks.length;
+        loadTrack(nextIndex);
+        audio.play();
+      }
+
+      function playPrev() {
+        const prevIndex = (currentIndex - 1 + tracks.length) % tracks.length;
+        loadTrack(prevIndex);
+        audio.play();
+      }
+
+      playBtn.addEventListener("click", () => audio.play());
+      pauseBtn.addEventListener("click", () => audio.pause());
+      nextBtn.addEventListener("click", playNext);
+      prevBtn.addEventListener("click", playPrev);
+
+      progress.addEventListener("input", () => {
+        const time = (progress.value / 100) * audio.duration;
+        audio.currentTime = time;
+      });
+
+      volume.addEventListener("input", () => {
+        audio.volume = volume.value;
+      });
+
+      audio.addEventListener("loadedmetadata", () => {
+        duration.textContent = formatTime(audio.duration);
+      });
+
+      audio.addEventListener("timeupdate", () => {
+        const pct = (audio.currentTime / audio.duration) * 100 || 0;
+        progress.value = pct;
+        current.textContent = formatTime(audio.currentTime);
+        highlightLyrics(audio.currentTime);
+      });
+
+      audio.addEventListener("ended", playNext);
+
+      loadTrack(0);
+      audio.volume = volume.value;
+    </script>
+  </body>
+</html>
